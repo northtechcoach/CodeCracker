@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Code Verifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;700&family=Space+Mono:wght@700&display=swap');
+        
+        body {
+            font-family: 'Lexend', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100-vh;
+        }
+
+        .char-box {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 3rem;
+            height: 3.5rem;
+            margin: 0.25rem;
+            border-radius: 0.5rem;
+            font-family: 'Space Mono', monospace;
+            font-size: 1.5rem;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+
+        .char-correct {
+            background-color: #10b981;
+            color: white;
+            transform: translateY(-2px);
+        }
+
+        .char-error {
+            background-color: #ef4444;
+            color: white;
+            animation: shake 0.5s;
+        }
+
+        .char-missing {
+            background-color: #e5e7eb;
+            color: #9ca3af;
+            border: 2px dashed #d1d5db;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-4px); }
+            75% { transform: translateX(4px); }
+        }
+
+        .gradient-text {
+            background: linear-gradient(to right, #fff, #e0e7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <div class="max-w-3xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-black text-white mb-2 tracking-tight uppercase">Code Cracker <span class="text-yellow-300">v1.0</span></h1>
+            <p class="text-indigo-100 opacity-80">Instant feedback for future cryptographers</p>
+        </header>
+
+        <div class="flex justify-center mb-8">
+            <div class="bg-black/20 p-1 rounded-xl inline-flex border border-white/10">
+                <button onclick="switchMode('teacher')" id="btn-teacher" class="px-6 py-2 rounded-lg font-bold transition-all text-white bg-indigo-500 shadow-lg">Teacher Setup</button>
+                <button onclick="switchMode('student')" id="btn-student" class="px-6 py-2 rounded-lg font-bold transition-all text-indigo-200 hover:text-white">Student Mode</button>
+            </div>
+        </div>
+
+        <section id="section-teacher" class="bg-white rounded-3xl p-8 shadow-2xl border border-white/20">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Set the Master Code</h2>
+            <p class="text-gray-500 mb-6">Enter the correct sequence below. This is what students will try to match.</p>
+            
+            <input type="text" id="masterCode" placeholder="E.g. ALAN-TURING-1954" 
+                class="w-full text-2xl p-4 rounded-2xl border-2 border-indigo-100 focus:border-indigo-500 focus:outline-none uppercase font-mono tracking-widest mb-6 transition-colors">
+            
+            <div class="bg-indigo-50 p-6 rounded-2xl border border-indigo-100">
+                <h3 class="font-bold text-indigo-900 mb-2">Student Link Generator:</h3>
+                <p class="text-sm text-indigo-700 mb-4">In a real app, you'd send this link. For now, just click "Student Mode" above after entering your code!</p>
+                <button onclick="switchMode('student')" class="bg-indigo-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-indigo-700 transition-colors shadow-lg">Lock & Start Lesson</button>
+            </div>
+        </section>
+
+        <section id="section-student" class="hidden space-y-6">
+            <div class="bg-white rounded-3xl p-8 shadow-2xl">
+                <label class="block text-sm font-bold text-gray-400 uppercase tracking-widest mb-4">Your Attempt</label>
+                <input type="text" id="studentInput" placeholder="Type the code here..." 
+                    class="w-full text-3xl p-6 rounded-2xl bg-gray-50 border-2 border-transparent focus:bg-white focus:border-indigo-500 focus:outline-none uppercase font-mono tracking-widest transition-all"
+                    oninput="verifyCode()">
+            </div>
+
+            <div id="feedbackCard" class="bg-white/90 backdrop-blur-md rounded-3xl p-8 shadow-2xl min-h-[200px]">
+                <h3 class="text-xl font-bold text-gray-800 mb-6 flex items-center">
+                    Visual Analysis
+                    <span id="statusBadge" class="ml-4 text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-500">Waiting for input...</span>
+                </h3>
+
+                <div id="visualGrid" class="flex flex-wrap items-center justify-center mb-8">
+                    </div>
+
+                <div id="positionReport" class="border-t border-gray-100 pt-6 hidden">
+                    <p class="text-sm font-bold text-gray-400 uppercase tracking-tighter mb-2">Error Locations</p>
+                    <div id="errorPositions" class="flex flex-wrap gap-2">
+                        </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        let mode = 'teacher';
+
+        function switchMode(newMode) {
+            mode = newMode;
+            document.getElementById('section-teacher').classList.toggle('hidden', mode !== 'teacher');
+            document.getElementById('section-student').classList.toggle('hidden', mode !== 'student');
+            
+            // UI Toggle Button Styles
+            const tBtn = document.getElementById('btn-teacher');
+            const sBtn = document.getElementById('btn-student');
+            
+            if(mode === 'teacher') {
+                tBtn.className = "px-6 py-2 rounded-lg font-bold transition-all text-white bg-indigo-500 shadow-lg";
+                sBtn.className = "px-6 py-2 rounded-lg font-bold transition-all text-indigo-200 hover:text-white";
+            } else {
+                sBtn.className = "px-6 py-2 rounded-lg font-bold transition-all text-white bg-indigo-500 shadow-lg";
+                tBtn.className = "px-6 py-2 rounded-lg font-bold transition-all text-indigo-200 hover:text-white";
+                verifyCode(); // Initialize on switch
+            }
+        }
+
+        function verifyCode() {
+            const master = document.getElementById('masterCode').value.toUpperCase();
+            const attempt = document.getElementById('studentInput').value.toUpperCase();
+            const grid = document.getElementById('visualGrid');
+            const report = document.getElementById('positionReport');
+            const posContainer = document.getElementById('errorPositions');
+            const badge = document.getElementById('statusBadge');
+            
+            grid.innerHTML = '';
+            posContainer.innerHTML = '';
+            
+            if (attempt.length === 0) {
+                badge.innerText = "Start typing...";
+                badge.className = "ml-4 text-xs px-3 py-1 rounded-full bg-gray-100 text-gray-500";
+                report.classList.add('hidden');
+                return;
+            }
+
+            const maxLength = Math.max(master.length, attempt.length);
+            let errorIndices = [];
+
+            for (let i = 0; i < maxLength; i++) {
+                const box = document.createElement('div');
+                box.className = 'char-box';
+                
+                const masterChar = master[i];
+                const attemptChar = attempt[i];
+
+                if (i < attempt.length) {
+                    box.innerText = attemptChar;
+                    if (attemptChar === masterChar) {
+                        box.classList.add('char-correct');
+                    } else {
+                        box.classList.add('char-error');
+                        errorIndices.push(i + 1);
+                    }
+                } else {
+                    box.innerText = '?';
+                    box.classList.add('char-missing');
+                    errorIndices.push(i + 1);
+                }
+                grid.appendChild(box);
+            }
+
+            // Update Error Positions Report
+            if (errorIndices.length > 0) {
+                report.classList.remove('hidden');
+                errorIndices.forEach(pos => {
+                    const tag = document.createElement('span');
+                    tag.className = "bg-red-100 text-red-600 px-3 py-1 rounded-full text-sm font-bold border border-red-200";
+                    tag.innerText = `Pos ${pos}`;
+                    posContainer.appendChild(tag);
+                });
+                badge.innerText = `${errorIndices.length} Issues Found`;
+                badge.className = "ml-4 text-xs px-3 py-1 rounded-full bg-red-100 text-red-600 font-bold";
+            } else {
+                report.classList.add('hidden');
+                badge.innerText = "Code Verified!";
+                badge.className = "ml-4 text-xs px-3 py-1 rounded-full bg-green-100 text-green-600 font-bold";
+            }
+        }
+    </script>
+</body>
+</html>
